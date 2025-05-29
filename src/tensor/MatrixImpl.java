@@ -41,6 +41,8 @@ public class MatrixImpl implements Matrix {
             File file = new File(filepath);
             BufferedReader br = new BufferedReader(new FileReader(file));
             String line;
+            int rowSize = -1;
+
             while ((line = br.readLine()) != null) {
                 var row = new ArrayList<Scalar>();
 
@@ -49,10 +51,19 @@ public class MatrixImpl implements Matrix {
                 for (String s : lineArr) {
                     row.add(new ScalarImpl(s.strip()));
                 }
+                if (rowSize < 0) {
+                    rowSize = row.size();
+                }
+                if (row.size() != rowSize) {
+                    throw new TensorInvalidInputException("invalid row size");
+                }
+
                 matrix.add(row);
             }
         } catch (IOException e) {
             System.out.println(e.getMessage());
+        } catch (TensorInvalidInputException e) {
+            throw e;
         }
     }
     MatrixImpl(String[][] values) {
@@ -61,7 +72,7 @@ public class MatrixImpl implements Matrix {
         for (String[] row : values) {
             var rowList = new ArrayList<Scalar>();
             if (rowSize > 0 && row.length != rowSize) {
-                throw new TensorInvalidInputException();
+                throw new TensorInvalidInputException("invalid row size");
             }
             for (String value : row) {
                 rowList.add(new ScalarImpl(value));
@@ -91,7 +102,7 @@ public class MatrixImpl implements Matrix {
     @Override
     public Scalar getMatrixElement(int row, int col) {
         if (!checkIndices(row, col)) {
-            throw new TensorInvalidIndexException();
+            throw new TensorInvalidIndexException("wrong index");
         }
         return matrix.get(row).get(col);
     }
@@ -99,7 +110,7 @@ public class MatrixImpl implements Matrix {
     @Override
     public void setMatrixElement(int row, int col, Scalar value) {
         if (!checkIndices(row, col)) {
-            throw new TensorInvalidIndexException();
+            throw new TensorInvalidIndexException("wrong index");
         }
         matrix.get(row).set(col, value);
     }
@@ -181,7 +192,7 @@ public class MatrixImpl implements Matrix {
     @Override
     public void multiply(Matrix other) {
         if (getMatrixColumnCount() != other.getMatrixRowCount()) {
-            throw new MatrixMulMismatchException();
+            throw new MatrixMulMismatchException("");
         }
         MatrixImpl m = new MatrixImpl(getMatrixRowCount(), other.getMatrixColumnCount(), "0");
         for (int i=0; i<getMatrixRowCount(); i++) {
@@ -194,6 +205,11 @@ public class MatrixImpl implements Matrix {
             }
         }
         matrix = m.matrix;
+    }
+
+    @Override
+    public void multiplyRight(Matrix other) {
+        other.multiply(this);
     }
 
     public static Matrix add(Matrix a, Matrix b) {
@@ -249,7 +265,7 @@ public class MatrixImpl implements Matrix {
     @Override
     public Vector extractRow(int rowIndex) {
         if (!checkRowIndex(rowIndex)) {
-            throw new TensorInvalidIndexException();
+            throw new TensorInvalidIndexException("wrong row index");
         }
         String[] newRow = new String[getMatrixColumnCount()];
         for (int i=0; i<getMatrixColumnCount(); i++) {
@@ -261,7 +277,7 @@ public class MatrixImpl implements Matrix {
     @Override
     public Vector extractColumn(int columnIndex) {
         if (!checkColumnIndex(columnIndex)) {
-            throw new TensorInvalidIndexException();
+            throw new TensorInvalidIndexException("wrong column index");
         }
         String[] newColumn = new String[getMatrixRowCount()];
         for (int i=0; i<getMatrixRowCount(); i++) {
@@ -273,10 +289,10 @@ public class MatrixImpl implements Matrix {
     @Override
     public Matrix subMatrix(int startRow, int endRow, int startCol, int endCol) {
         if (!checkIndices(startRow, startCol) || !checkIndices(endRow, endCol)) {
-            throw new TensorInvalidIndexException();
+            throw new TensorInvalidIndexException("wrong row index or column index");
         }
         if (startRow > endRow || startCol > endCol) {
-            throw new TensorInvalidInputException();
+            throw new TensorInvalidInputException("wrong row range or column range");
         }
         String[][] newMatrix = new String[endRow - startRow + 1][endCol - startCol + 1];
         for (int i=startRow; i<=endRow; i++) {
@@ -290,7 +306,7 @@ public class MatrixImpl implements Matrix {
     @Override
     public Matrix minor(int rowToExclude, int colToExclude) {
         if (!checkIndices(rowToExclude, colToExclude)) {
-            throw new TensorInvalidIndexException();
+            throw new TensorInvalidIndexException("wrong row index or column index");
         }
         String[][] newMatrix = new String[getMatrixRowCount()-1][getMatrixColumnCount()-1];
         int k=0;
@@ -325,7 +341,7 @@ public class MatrixImpl implements Matrix {
     @Override
     public Scalar trace() {
         if (!isSquare()) {
-            throw new NonSquareMatrixException();
+            throw new MatrixNonSquareException();
         }
         Scalar sum = new ScalarImpl("0");
         for (int i=0; i<getMatrixRowCount(); i++) {
@@ -346,7 +362,7 @@ public class MatrixImpl implements Matrix {
         }
         for (int i=1; i<getMatrixRowCount(); i++) {
             for (int j=0; j<i; j++) {
-                if (getMatrixElement(i, j).getValue().equals("0")) {
+                if (getMatrixElement(i, j).equals(Factory.createScalar("0"))) {
                     return false;
                 }
             }
@@ -361,7 +377,7 @@ public class MatrixImpl implements Matrix {
         }
         for (int i=0; i<getMatrixRowCount(); i++) {
             for (int j=i+1; j<getMatrixColumnCount(); j++) {
-                if (getMatrixElement(i, j).getValue().equals("0")) {
+                if (getMatrixElement(i, j).equals(Factory.createScalar("0"))) {
                     return false;
                 }
             }
@@ -377,11 +393,11 @@ public class MatrixImpl implements Matrix {
         for (int i=0; i<getMatrixRowCount(); i++) {
             for (int j=0; j<getMatrixColumnCount(); j++) {
                 if (i == j) {
-                    if (getMatrixElement(i, j).getValue().equals("0")) {
+                    if (getMatrixElement(i, j).equals(Factory.createScalar("0"))) {
                         return false;
                     }
                 } else {
-                    if (!getMatrixElement(i, j).getValue().equals("0")) {
+                    if (!getMatrixElement(i, j).equals(Factory.createScalar("0"))) {
                         return false;
                     }
                 }
@@ -394,7 +410,7 @@ public class MatrixImpl implements Matrix {
     public boolean isZeroMatrix() {
         for (int i=0; i<getMatrixRowCount(); i++) {
             for (int j=0; j<getMatrixColumnCount(); j++) {
-                if (!getMatrixElement(i, j).getValue().equals("0")) {
+                if (!getMatrixElement(i, j).equals(Factory.createScalar("0"))) {
                     return false;
                 }
             }
@@ -407,8 +423,8 @@ public class MatrixImpl implements Matrix {
         Vector r1 = extractRow(row1);
         Vector r2 = extractRow(row2);
         for (int i=0; i<getMatrixColumnCount(); i++) {
-            getMatrixElement(row1, i).setValue(r1.getVectorElement(i).getValue());
-            getMatrixElement(row2, i).setValue(r2.getVectorElement(i).getValue());
+            getMatrixElement(row1, i).setValue(r2.getVectorElement(i).getValue());
+            getMatrixElement(row2, i).setValue(r1.getVectorElement(i).getValue());
         }
     }
 
@@ -417,8 +433,8 @@ public class MatrixImpl implements Matrix {
         Vector c1 = extractColumn(col1);
         Vector c2 = extractColumn(col2);
         for (int i=0; i<getMatrixRowCount(); i++) {
-            getMatrixElement(i, col1).setValue(c1.getVectorElement(i).getValue());
-            getMatrixElement(i, col2).setValue(c2.getVectorElement(i).getValue());
+            getMatrixElement(i, col1).setValue(c2.getVectorElement(i).getValue());
+            getMatrixElement(i, col2).setValue(c1.getVectorElement(i).getValue());
         }
     }
 
@@ -441,7 +457,7 @@ public class MatrixImpl implements Matrix {
         for (int i=0; i<getMatrixColumnCount(); i++) {
             Scalar sourceScalar = getMatrixElement(sourceRow, i).clone();
             sourceScalar.multiply(scalar);
-            getMatrixElement(targetRow, i).multiply(sourceScalar);
+            getMatrixElement(targetRow, i).add(sourceScalar);
         }
     }
 
@@ -450,61 +466,169 @@ public class MatrixImpl implements Matrix {
         for (int i=0; i<getMatrixRowCount(); i++) {
             Scalar sourceScalar = getMatrixElement(i, sourceCol).clone();
             sourceScalar.multiply(scalar);
-            getMatrixElement(i, targetCol).multiply(sourceScalar);
+            getMatrixElement(i, targetCol).add(sourceScalar);
         }
     }
 
     @Override
     public Matrix toRref() {
-        Matrix copy = clone();
-        int rowCount = getMatrixRowCount();
-        int colCount = getMatrixColumnCount();
-        int pivotRow = 0;
-        int pivotCol = 0;
+        Matrix copy = clone(); // 원본 손상 방지
+        int rowCount = copy.getMatrixRowCount();
+        int colCount = copy.getMatrixColumnCount();
+        int lead = 0;
 
-        for (; pivotCol < colCount; pivotCol++) { // to Ref
-            int targetRow = pivotRow;
-            while (targetRow < rowCount) { // find non-zero value row
-                if (!getMatrixElement(targetRow, pivotCol).getValue().equals("0")) {
-                    break;
-                }
-                targetRow++;
+        for (int r = 0; r < rowCount; r++) {
+            if (lead >= colCount) {
+                break;
             }
 
-            if (targetRow == rowCount) { // not exist non-zero values
+            int i = r;
+
+            // 1. lead 열에 대해 0이 아닌 행 찾기
+            while (i < rowCount && copy.getMatrixElement(i, lead).equals(Factory.createScalar("0"))) {
+                i++;
+            }
+
+            if (i == rowCount) {
+                lead++;
+                r--;  // 행은 그대로, 다음 열로
                 continue;
             }
 
-            copy.swapRows(targetRow, pivotRow);
+            // 2. 해당 행을 현재 행으로 올리기
+            copy.swapRows(i, r);
 
-            Scalar lead = copy.getMatrixElement(pivotRow, pivotCol).clone();
+            // 3. 선행 1 만들기
+            Scalar pivot = copy.getMatrixElement(r, lead).clone();
+            pivot.inverse();
+            copy.scaleRow(r, pivot);
 
-            // TODO : lead divide in targetRow
-            scaleRow(pivotRow, lead);
+            // 4. lead 열 제거
+            for (int j = 0; j < rowCount; j++) {
+                if (j == r) {
+                    continue;
+                }
+                Scalar factor = copy.getMatrixElement(r, lead).clone();
+                factor.multiply(Factory.createScalar("-1"));
+                factor.multiply(copy.getMatrixElement(j, lead));
+                if (!factor.equals(Factory.createScalar("0"))) {
+                    copy.addScaledRow(j, r, factor);
+                }
+            }
+
+            lead++;
         }
-        // TODO : Ref -> Rref
 
         return copy;
     }
 
     @Override
     public boolean isRref() {
-        return false;
+        int rowCount = getMatrixRowCount();
+        int colCount = getMatrixColumnCount();
+
+        int leadCol = -1;  // 마지막 선행 1의 열 인덱스
+
+        for (int i = 0; i < rowCount; i++) {
+            // 1. 현재 행에서 0이 아닌 첫 번째 요소 찾기
+            int currentLead = -1;
+            for (int j = 0; j < colCount; j++) {
+                Scalar val = getMatrixElement(i, j);
+                if (!val.equals(Factory.createScalar("0"))) {
+                    currentLead = j;
+                    break;
+                }
+            }
+
+            // 2. 전부 0인 행이면 아래 행도 다 0이어야 함
+            if (currentLead == -1) {
+                for (int k = i + 1; k < rowCount; k++) {
+                    for (int j = 0; j < colCount; j++) {
+                        Scalar val = getMatrixElement(k, j);
+                        if (!val.equals(Factory.createScalar("0"))) {
+                            return false; // 아래에 0 아닌 값 있으면 실패
+                        }
+                    }
+                }
+                break; // 이후 행은 확인할 필요 없음
+            }
+
+            // 3. 선행 1은 반드시 1이어야 함
+            Scalar leadVal = getMatrixElement(i, currentLead);
+            if (!leadVal.equals(Factory.createScalar("1"))) {
+                return false;
+            }
+
+            // 4. 선행 1 열의 다른 값은 모두 0이어야 함
+            for (int k = 0; k < rowCount; k++) {
+                if (k == i) {
+                    continue;
+                }
+                Scalar val = getMatrixElement(k, currentLead);
+                if (!val.equals(Factory.createScalar("0"))) {
+                    return false;
+                }
+            }
+
+            // 5. 선행 1의 열 위치는 계속 오른쪽으로 진행해야 함
+            if (currentLead <= leadCol) {
+                return false;
+            }
+
+            leadCol = currentLead;
+        }
+
+        return true;
     }
 
     @Override
     public Scalar determinant() {
-        return null;
+        if (!isSquare()) {
+            throw new MatrixNonSquareException();
+        }
+        return determinant(this);
+    }
+
+    private Scalar determinant(Matrix currentMatrix) {
+        if (currentMatrix.getMatrixRowCount() == 1) {
+            return currentMatrix.getMatrixElement(0, 0).clone();
+        }
+        if (currentMatrix.getMatrixRowCount() == 2) {
+            return Tensors.add(Tensors.multiply(currentMatrix.getMatrixElement(0, 0), currentMatrix.getMatrixElement(1, 1))
+                 , Tensors.multiply(Tensors.multiply(currentMatrix.getMatrixElement(1, 0), currentMatrix.getMatrixElement(0, 1)), Factory.createScalar("-1")));
+        }
+        Scalar sum = Factory.createScalar("0");
+        for (int i=0; i<currentMatrix.getMatrixRowCount(); i++) {
+            Scalar value = Tensors.multiply(currentMatrix.getMatrixElement(0, i), determinant(currentMatrix.minor(0, i)));
+            if (i % 2 == 1) {
+                value.multiply(Factory.createScalar("-1"));
+            }
+            sum.add(value);
+        }
+        return sum;
     }
 
     @Override
     public Matrix inverse() {
-        return null;
-    }
+        if (!isSquare()) {
+            throw new MatrixNonSquareException();
+        }
 
-    @Override
-    public int compareTo(Matrix o) {
-        return 0;
+        int n = getMatrixRowCount();
+
+        // 1. [A | I] 확장 행렬 만들기
+        Matrix identity = Factory.createIdentityMatrix(n);
+        Matrix augmented = Tensors.concatColumns(clone(), identity);
+
+        // 2. RREF 변환
+        Matrix rref = augmented.toRref();
+
+        // 3. 왼쪽 절반이 단위행렬인지 확인
+        if (!rref.subMatrix(0, n-1, 0, n-1).isIdentityMatrix()) {
+            throw new TensorArithmeticException();
+        }
+
+        return rref.subMatrix(0, n-1, n, 2*n - 1);
     }
 
     private boolean checkRowIndex(int index) {

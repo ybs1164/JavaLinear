@@ -36,7 +36,7 @@ public class VectorImpl implements Vector {
     @Override
     public Scalar getVectorElement(int index) {
         if (!checkIndex(index)) {
-            throw new TensorInvalidInputException();
+            throw new TensorInvalidIndexException("wrong index");
         }
         return vector.get(index);
     }
@@ -44,7 +44,7 @@ public class VectorImpl implements Vector {
     @Override
     public void setVectorElement(int index, Scalar value) {
         if (!checkIndex(index)) {
-            throw new TensorInvalidInputException();
+            throw new TensorInvalidIndexException("wrong index");
         }
         vector.set(index, value);
     }
@@ -134,11 +134,6 @@ public class VectorImpl implements Vector {
             values[0][i] = getVectorElement(i).getValue();
         }
         return new MatrixImpl(values);
-    }
-
-    @Override
-    public int compareTo(Vector o) {
-        return 0;
     }
 
     private boolean checkIndex(int index) {

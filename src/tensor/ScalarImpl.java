@@ -1,6 +1,7 @@
 package tensor;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 class ScalarImpl implements Scalar {
     private BigDecimal value;
@@ -12,7 +13,7 @@ class ScalarImpl implements Scalar {
         try {
             value = new BigDecimal(s);
         } catch (NumberFormatException e) {
-            throw new TensorInvalidInputException();
+            throw new TensorInvalidInputException("wrong input");
         }
     }
     ScalarImpl(BigDecimal b) {
@@ -24,9 +25,11 @@ class ScalarImpl implements Scalar {
             BigDecimal b = new BigDecimal(max);
             BigDecimal c = new BigDecimal(Math.random());
 
+            // TODO : range check
+
             value = b.subtract(a).multiply(c).add(a);
         } catch (NumberFormatException e) {
-            throw new TensorInvalidInputException();
+            throw new TensorInvalidInputException("wrong input");
         }
     }
 
@@ -40,7 +43,7 @@ class ScalarImpl implements Scalar {
         try {
             this.value = new BigDecimal(value);
         } catch (NumberFormatException e) {
-            throw new TensorInvalidInputException();
+            throw new TensorInvalidInputException("wrong input");
         }
     }
 
@@ -52,7 +55,7 @@ class ScalarImpl implements Scalar {
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof Scalar s) {
-            return getValue().equals(s.getValue());
+            return compareTo(s) == 0;
         } else {
             return false;
         }
@@ -76,6 +79,11 @@ class ScalarImpl implements Scalar {
     @Override
     public void multiply(Scalar other) {
         value = value.multiply(new BigDecimal(other.getValue()));
+    }
+
+    @Override
+    public void inverse() {
+        value = (new BigDecimal("1")).divide(value, 2, RoundingMode.UNNECESSARY);
     }
 
     public static Scalar add(Scalar a, Scalar b) {
